@@ -25,6 +25,8 @@ else:
     group_chats = set()
     banned_groups = set()
 
+search_results = {}  # Stores last search results per chat
+
 def save_data():
     with open("data.json", "w") as f:
         json.dump({
@@ -72,14 +74,72 @@ async def play_audio(client, message):
     if message.chat.id in banned_groups:
         return
     if len(message.command) < 2:
-        return await message.reply("Please provide a YouTube URL.")
-    url = message.command[1]
-    audio_file = download_audio(url)
-    await pytgcalls.change_stream(
-        message.chat.id,
-        InputAudioStream(audio_file, HighQualityAudio())
-    )
-    await message.reply(f"Now playing: {url}")
+        return await message.reply("Please provide a YouTube URL, song name, or a search result number.")
+
+    query = " ".join(message.command[1:])
+
+    # If user provides a number after using !search
+    if query.isdigit():
+        index = int(query) - 1
+        results = search_results.get(message.chat.id)
+        if not results or index < 0 or index >= len(results):
+            return await message.reply("Invalid selection. Use !search first and then choose a number from the list.")
+        url = results[index]["webpage_url"]
+    elif not query.startswith("http"):
+        # Treat as a song name
+        ydl_opts = {
+            'quiet': True,
+            'format': 'bestaudio/best',
+            'noplaylist': True,
+            'default_search': 'ytsearch1',
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                info = ydl.extract_info(query, download=False)
+                video = info["entries"][0] if "entries" in info else info
+                url = video["webpage_url"]
+            except Exception as e:
+                return await message.reply(f"Error finding video: {e}")
+    else:
+        url = query
+
+    try:
+        audio_file = download_audio(url)
+        await pytgcalls.change_stream(
+            message.chat.id,
+            InputAudioStream(audio_file, HighQualityAudio())
+        )
+        await message.reply(f"Now playing: {url}")
+    except Exception as e:
+        await message.reply(f"Failed to play audio: {e}")
+
+@app.on_message(filters.command("search", prefixes="!") & filters.group)
+async def search_youtube(client, message):
+    if len(message.command) < 2:
+        return await message.reply("Please provide a search query. Example: `!search despacito`")
+
+    query = " ".join(message.command[1:])
+    ydl_opts = {
+        'quiet': True,
+        'format': 'bestaudio/best',
+        'noplaylist': True,
+        'default_search': 'ytsearch5',
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            info = ydl.extract_info(query, download=False)
+            videos = info["entries"]
+            if not videos:
+                return await message.reply("No results found.")
+            search_results[message.chat.id] = videos
+            reply_text = "**Top Results:**\n\n"
+            for idx, video in enumerate(videos, start=1):
+                reply_text += f"`{idx}.` [{video['title']}]({video['webpage_url']}) - {video['duration_string']}\n"
+            reply_text += "\nReply with `!play <number>` to play one of the results."
+            await message.reply(reply_text, disable_web_page_preview=True)
+        except Exception as e:
+            await message.reply(f"Search failed: {e}")
 
 @app.on_message(filters.command("leave", prefixes="!") & filters.group)
 async def leave_vc(client, message):
@@ -126,8 +186,7 @@ async def list_banned_groups(client, message):
     if not banned_groups:
         await message.reply("No banned groups.")
     else:
-        text = "**Banned Groups:**
-" + "\n".join([str(gid) for gid in banned_groups])
+        text = "**Banned Groups:**\n" + "\n".join([str(gid) for gid in banned_groups])
         await message.reply(text)
 
 @pytgcalls.on_stream_end()
@@ -142,3 +201,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
