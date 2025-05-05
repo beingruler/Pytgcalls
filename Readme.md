@@ -65,7 +65,7 @@ mkdir downloads
 
 7. Run the bot:
 ```bash
-python bot.py
+python music_bot.py
 ```
 
 ## 📜 Commands
