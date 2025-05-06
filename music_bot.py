@@ -10,10 +10,10 @@ from pyrogram.idle import idle
 import yt_dlp
 
 # Replace with your own credentials
-API_ID = 123456
-API_HASH = "your_api_hash"
+API_ID = 8217159
+API_HASH = "fd7a9938ef92663a435a682ad2a8913f"
 SESSION_STRING = "your_session_string"
-OWNER_ID = 123456789  # Replace with your Telegram user ID
+OWNER_ID = 5776889746  # Replace with your Telegram user ID
 
 # Load or initialize data
 if os.path.exists("data.json"):
